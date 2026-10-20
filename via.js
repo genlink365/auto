@@ -2,7 +2,7 @@
 // @name         FB Auto Register
 // @namespace    https://viayoo.com/6rpkld
 // @version      3.0
-// @match        https://limited.facebook.com/*
+// @match        https://*.facebook.com/*
 // @run-at       document-end
 // @grant        none
 // ==/UserScript==
