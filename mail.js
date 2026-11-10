@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TempMail Helper
 // @namespace    tempmail-helper
-// @version      5.1
+// @version      5.2
 // @match        https://*.instagram.com/*
 // @match        https://*.facebook.com/*
 // @run-at       document-end
@@ -66,10 +66,9 @@
         (subject || '').match(/\b(\d{5})\b/)?.[1] || null;
 
     const genPhone = () => {
-        const prefix = '62';
-        let n = '';
+        let n = '62';
         for (let i = 0; i < 10; i++) n += Math.floor(Math.random() * 10);
-        return prefix + n;
+        return n;
     };
 
     let lastOtpId = Number(gmGet(KEY_LAST_ID)) || 0;
@@ -151,7 +150,7 @@
       -webkit-tap-highlight-color:transparent;
       box-sizing:border-box;
       transition:max-height .28s cubic-bezier(.4,0,.2,1);
-      max-height:200px;overflow:hidden
+      max-height:180px;overflow:hidden
     }
     #tm-bar.min{max-height:36px}
 
@@ -211,7 +210,7 @@
 
     #tm-bar .tm-field{
       display:flex;align-items:center;
-      height:36px;flex:1 1 0;min-width:0;
+      height:34px;flex:1 1 0;min-width:0;
       padding:0 10px;border-radius:9px;
       background:rgba(0,0,0,.5);
       border:1px solid rgba(124,136,255,.18);
@@ -231,17 +230,9 @@
     #tm-bar .tm-field input::placeholder{
       color:#565a80;font-weight:500;font-size:11px
     }
-    #tm-bar .tm-field.phone{
-      border-color:rgba(92,232,154,.22);
-      background:rgba(80,220,140,.05)
-    }
-    #tm-bar .tm-field.phone:focus-within{
-      border-color:rgba(92,232,154,.55)
-    }
-    #tm-bar .tm-field.phone input{color:#5ce89a}
 
     #tm-bar .tm-btn{
-      height:36px;padding:0 12px;
+      height:34px;padding:0 11px;
       border-radius:9px;cursor:pointer;
       font:600 11.5px -apple-system,system-ui,sans-serif;
       background:rgba(124,136,255,.14);
@@ -258,32 +249,65 @@
     #tm-bar .tm-btn.primary{
       background:rgba(124,136,255,.35);
       border-color:rgba(124,136,255,.55);color:#fff;
-      min-width:64px
+      min-width:60px
     }
     #tm-bar .tm-btn.danger{
       background:rgba(255,107,107,.14);
       border-color:rgba(255,107,107,.3);color:#ff8f8f;
-      padding:0 10px
+      padding:0 9px
     }
     #tm-bar .tm-btn.danger:hover{
       background:rgba(255,107,107,.28);color:#fff
     }
-    #tm-bar .tm-btn.copy{padding:0 10px;font-size:11px}
-    #tm-bar .tm-btn.gen{
-      background:rgba(80,220,140,.14);
-      border-color:rgba(80,220,140,.3);
+    #tm-bar .tm-btn.copy{padding:0 9px;font-size:11px}
+
+    #tm-bar .tm-phone{
+      display:flex;align-items:center;gap:6px;
+      height:30px;padding:0 4px;
+      font:11px 'SF Mono','Consolas',monospace;
       color:#5ce89a;
-      padding:0 10px;font-size:11px
+      background:transparent;
+      border:none;
+      cursor:pointer;
+      transition:all .16s;
+      border-radius:6px;
+      flex:1 1 0;min-width:0;
+      overflow:hidden
     }
-    #tm-bar .tm-btn.gen:hover{
-      background:rgba(80,220,140,.28);color:#fff
+    #tm-bar .tm-phone:hover{background:rgba(80,220,140,.08)}
+    #tm-bar .tm-phone:active{transform:scale(.98)}
+    #tm-bar .tm-phone .tm-phone-val{
+      flex:1;min-width:0;
+      text-align:center;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      letter-spacing:.4px
+    }
+    #tm-bar .tm-phone.empty .tm-phone-val{
+      color:#565a80;
+      font:500 11px -apple-system,system-ui,sans-serif;
+      letter-spacing:.3px
+    }
+    #tm-bar .tm-phone .tm-phone-gen{
+      width:22px;height:22px;padding:0;
+      display:inline-flex;align-items:center;justify-content:center;
+      border-radius:6px;cursor:pointer;flex-shrink:0;
+      background:rgba(80,220,140,.1);
+      border:1px solid rgba(80,220,140,.2);
+      color:#5ce89a;transition:all .16s
+    }
+    #tm-bar .tm-phone .tm-phone-gen:hover{
+      background:rgba(80,220,140,.25);color:#fff
+    }
+    #tm-bar .tm-phone .tm-phone-gen:active{transform:scale(.9)}
+    #tm-bar .tm-phone .tm-phone-gen svg{
+      width:12px;height:12px;stroke-width:2.5
     }
 
     #tm-bar .tm-otp{
-      height:42px;width:100%;
+      height:40px;width:100%;
       display:flex;align-items:center;justify-content:center;
       border-radius:9px;
-      font:700 21px 'SF Mono','Consolas',monospace;
+      font:700 20px 'SF Mono','Consolas',monospace;
       letter-spacing:5px;
       color:#5ce89a;
       background:rgba(80,220,140,.08);
@@ -305,7 +329,7 @@
 
     #tm-toast{
       position:fixed;left:50%;
-      bottom:calc(180px + env(safe-area-inset-bottom,0px));
+      bottom:calc(160px + env(safe-area-inset-bottom,0px));
       transform:translate(-50%,14px);
       padding:9px 18px;border-radius:22px;
       background:rgba(20,22,38,.97);
@@ -324,10 +348,11 @@
 
     @media(max-width:380px){
       #tm-bar .tm-btn.copy{display:none}
-      #tm-bar .tm-btn{padding:0 9px;font-size:11px}
-      #tm-bar .tm-btn.primary{min-width:56px}
+      #tm-bar .tm-btn{padding:0 8px;font-size:11px}
+      #tm-bar .tm-btn.primary{min-width:54px}
       #tm-bar .tm-field input{font-size:11px}
-      #tm-bar .tm-otp{font-size:19px;letter-spacing:4px;height:40px}
+      #tm-bar .tm-otp{font-size:18px;letter-spacing:4px;height:38px}
+      #tm-bar .tm-phone{font-size:10px}
     }
     `;
 
@@ -362,11 +387,16 @@
               <button id="tm-cp-e" class="tm-btn copy" title="Copy email">Copy</button>
             </div>
             <div class="tm-row">
-              <div class="tm-field phone" title="Nomor HP">
-                <input id="tm-phone" readonly placeholder="62..."/>
+              <div class="tm-phone empty" id="tm-phone-box" title="Tap untuk copy, gen untuk nomor baru">
+                <span class="tm-phone-val" id="tm-phone-val">Nomor HP</span>
+                <button class="tm-phone-gen" id="tm-gen-phone" title="Generate nomor">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                    <path d="M21 3v5h-5"/>
+                  </svg>
+                </button>
               </div>
-              <button id="tm-gen-phone" class="tm-btn gen" title="Generate nomor">Gen</button>
-              <button id="tm-cp-p" class="tm-btn copy" title="Copy nomor">Copy</button>
             </div>
             <div class="tm-row">
               <div class="tm-otp" id="tm-big"></div>
@@ -382,16 +412,22 @@
 
     const sync = () => {
         const emailEl = $('tm-email');
-        const phoneEl = $('tm-phone');
         const bigEl = $('tm-big');
+        const phoneBox = $('tm-phone-box');
+        const phoneVal = $('tm-phone-val');
         const dot = $('tm-dot');
         if (!emailEl || !bigEl) return;
 
         const email = gmGet(KEY_EMAIL);
         const otp = gmGet(KEY_OTP);
+        const phone = gmGet(KEY_PHONE);
 
         emailEl.value = email;
-        if (phoneEl) phoneEl.value = gmGet(KEY_PHONE);
+
+        if (phoneBox && phoneVal) {
+            phoneBox.classList.toggle('empty', !phone);
+            phoneVal.textContent = phone || 'Nomor HP';
+        }
 
         if (waiting) {
             bigEl.classList.add('waiting');
@@ -428,12 +464,13 @@
 
     const bind = () => {
         const emailEl = $('tm-email');
-        const phoneEl = $('tm-phone');
         const bigEl = $('tm-big');
+        const phoneBox = $('tm-phone-box');
         const loadBtn = $('tm-load');
         const resetBtn = $('tm-reset');
         const minBtn = $('tm-min');
         const toggle = $('tm-toggle');
+        const genBtn = $('tm-gen-phone');
         if (!emailEl || !bigEl || !loadBtn || !resetBtn || !minBtn) return;
 
         const copyEmail = async () =>
@@ -444,20 +481,17 @@
         const copyPhone = async () =>
             (await copy(gmGet(KEY_PHONE)))
                 ? toast('Nomor tersalin ✓')
-                : toast('Kosong');
+                : toast('Tap gen dulu');
 
         emailEl.onclick = copyEmail;
         const cpBtn = $('tm-cp-e');
         if (cpBtn) cpBtn.onclick = copyEmail;
 
-        if (phoneEl) phoneEl.onclick = copyPhone;
-        const cpPhone = $('tm-cp-p');
-        if (cpPhone) cpPhone.onclick = copyPhone;
+        if (phoneBox) phoneBox.onclick = copyPhone;
 
-        const genBtn = $('tm-gen-phone');
-        if (genBtn) genBtn.onclick = () => {
-            const phone = genPhone();
-            gmSet(KEY_PHONE, phone);
+        if (genBtn) genBtn.onclick = (e) => {
+            e.stopPropagation();
+            gmSet(KEY_PHONE, genPhone());
             sync();
             toast('Nomor baru ✓');
         };
