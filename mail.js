@@ -4,6 +4,9 @@
 // @match        https://*.facebook.com/*
 // @run-at       document-end
 // @grant        GM_xmlhttpRequest
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_deleteValue
 // @connect      tempemail.info
 // ==/UserScript==
 
@@ -18,11 +21,25 @@
     const LS_LAST_ID = 'tm_last_id';
     const LS_SESS = 'tm_sess';
 
+    const hasGM = typeof GM_setValue === 'function' && typeof GM_getValue === 'function';
+
     const store = {
-        get: k => localStorage.getItem(k) || '',
-        set: (k, v) => v !== '' && v != null
-            ? localStorage.setItem(k, v)
-            : localStorage.removeItem(k),
+        get: (k) => {
+            if (hasGM) {
+                try { return GM_getValue(k, '') || ''; } catch { /* fallback */ }
+            }
+            return localStorage.getItem(k) || '';
+        },
+        set: (k, v) => {
+            const val = v !== '' && v != null ? String(v) : '';
+            if (hasGM) {
+                try {
+                    val ? GM_setValue(k, val) : GM_deleteValue(k);
+                    return;
+                } catch { /* fallback */ }
+            }
+            val ? localStorage.setItem(k, val) : localStorage.removeItem(k);
+        },
     };
 
     const req = (url, opt = {}) => new Promise((ok, err) =>
