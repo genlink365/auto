@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TempMail Helper
 // @namespace    tempmail-helper
-// @version      4.2
+// @version      5.0
 // @match        https://*.instagram.com/*
 // @match        https://*.facebook.com/*
 // @run-at       document-end
@@ -23,6 +23,7 @@
     const KEY_OTP = 'tm_otp';
     const KEY_LAST_ID = 'tm_last_id';
     const KEY_SESS = 'tm_sess';
+    const KEY_MIN = 'tm_min';
 
     const gmGet = k => { try { return GM_getValue(k, '') || ''; } catch { return ''; } };
     const gmSet = (k, v) => {
@@ -129,13 +130,8 @@
 
     const CSS = `
     #tm-bar{
-      position:fixed;
-      left:0;right:0;bottom:0;
-      width:100%;
+      position:fixed;left:0;right:0;bottom:0;width:100%;
       z-index:2147483647;
-      display:flex;flex-direction:column;
-      gap:6px;
-      padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));
       background:rgba(14,14,22,.97);
       -webkit-backdrop-filter:blur(24px) saturate(180%);
       backdrop-filter:blur(24px) saturate(180%);
@@ -145,23 +141,31 @@
       color:#e0e3ff;
       user-select:none;
       -webkit-tap-highlight-color:transparent;
-      animation:tmIn .28s cubic-bezier(.4,0,.2,1);
-      box-sizing:border-box
+      box-sizing:border-box;
+      transition:max-height .28s cubic-bezier(.4,0,.2,1);
+      max-height:160px;overflow:hidden
     }
-    @keyframes tmIn{
-      from{opacity:0;transform:translateY(20px)}
-      to{opacity:1;transform:translateY(0)}
+    #tm-bar.min{max-height:36px}
+
+    #tm-bar .tm-body{
+      display:flex;flex-direction:column;gap:6px;
+      padding:6px 10px calc(8px + env(safe-area-inset-bottom,0px))
     }
 
     #tm-bar .tm-head{
       display:flex;align-items:center;justify-content:space-between;
+      height:24px;padding:0 2px;
       font:600 10px -apple-system,system-ui,sans-serif;
       letter-spacing:.8px;text-transform:uppercase;
-      color:#7c88ff;padding:0 2px
+      color:#7c88ff
+    }
+    #tm-bar .tm-head .tm-left{
+      display:flex;align-items:center;gap:6px;
+      cursor:pointer;flex:1;min-width:0
     }
     #tm-bar .tm-head .tm-dot{
-      display:inline-block;width:7px;height:7px;border-radius:50%;
-      background:#5ce89a;margin-right:6px;vertical-align:middle;
+      width:7px;height:7px;border-radius:50%;
+      background:#5ce89a;flex-shrink:0;
       box-shadow:0 0 8px #5ce89a;
       transition:background .3s,box-shadow .3s
     }
@@ -174,6 +178,23 @@
       0%,100%{opacity:1}
       50%{opacity:.4}
     }
+    #tm-bar .tm-head .tm-title{
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+    }
+    #tm-bar .tm-head .tm-min{
+      width:24px;height:24px;padding:0;
+      display:inline-flex;align-items:center;justify-content:center;
+      border-radius:6px;cursor:pointer;flex-shrink:0;
+      background:transparent;border:none;
+      color:#7c88ff;transition:all .16s
+    }
+    #tm-bar .tm-head .tm-min:hover{background:rgba(124,136,255,.18);color:#fff}
+    #tm-bar .tm-head .tm-min:active{transform:scale(.9)}
+    #tm-bar .tm-head .tm-min svg{
+      width:14px;height:14px;
+      transition:transform .28s cubic-bezier(.4,0,.2,1)
+    }
+    #tm-bar.min .tm-head .tm-min svg{transform:rotate(180deg)}
 
     #tm-bar .tm-row{
       display:flex;align-items:center;gap:6px;
@@ -182,13 +203,12 @@
 
     #tm-bar .tm-field{
       display:flex;align-items:center;
-      height:38px;flex:1 1 0;min-width:0;
-      padding:0 12px;border-radius:10px;
+      height:36px;flex:1 1 0;min-width:0;
+      padding:0 10px;border-radius:9px;
       background:rgba(0,0,0,.5);
       border:1px solid rgba(124,136,255,.18);
       transition:border-color .2s,background .2s
     }
-    #tm-bar .tm-field:active,
     #tm-bar .tm-field:focus-within{
       border-color:rgba(124,136,255,.6);
       background:rgba(0,0,0,.65)
@@ -196,18 +216,18 @@
     #tm-bar .tm-field input{
       width:100%;min-width:0;
       border:none;outline:none;background:transparent;
-      font:12px 'SF Mono','Consolas',monospace;
+      font:11.5px 'SF Mono','Consolas',monospace;
       letter-spacing:.3px;color:#e0e3ff;
-      text-align:center;
+      text-align:center
     }
     #tm-bar .tm-field input::placeholder{
       color:#565a80;font-weight:500;font-size:11px
     }
 
     #tm-bar .tm-btn{
-      height:38px;padding:0 14px;
-      border-radius:10px;cursor:pointer;
-      font:600 12px -apple-system,system-ui,sans-serif;
+      height:36px;padding:0 12px;
+      border-radius:9px;cursor:pointer;
+      font:600 11.5px -apple-system,system-ui,sans-serif;
       background:rgba(124,136,255,.14);
       border:1px solid rgba(124,136,255,.25);
       color:#dfe2ff;
@@ -222,7 +242,7 @@
     #tm-bar .tm-btn.primary{
       background:rgba(124,136,255,.35);
       border-color:rgba(124,136,255,.55);color:#fff;
-      min-width:72px
+      min-width:64px
     }
     #tm-bar .tm-btn.danger{
       background:rgba(255,107,107,.14);
@@ -232,15 +252,13 @@
     #tm-bar .tm-btn.danger:hover{
       background:rgba(255,107,107,.28);color:#fff
     }
-    #tm-bar .tm-btn.copy{
-      padding:0 12px;font-size:11px
-    }
+    #tm-bar .tm-btn.copy{padding:0 10px;font-size:11px}
 
     #tm-bar .tm-otp{
-      height:44px;width:100%;
+      height:42px;width:100%;
       display:flex;align-items:center;justify-content:center;
-      border-radius:10px;
-      font:700 22px 'SF Mono','Consolas',monospace;
+      border-radius:9px;
+      font:700 21px 'SF Mono','Consolas',monospace;
       letter-spacing:5px;
       color:#5ce89a;
       background:rgba(80,220,140,.08);
@@ -262,7 +280,7 @@
 
     #tm-toast{
       position:fixed;left:50%;
-      bottom:calc(130px + env(safe-area-inset-bottom,0px));
+      bottom:calc(140px + env(safe-area-inset-bottom,0px));
       transform:translate(-50%,14px);
       padding:9px 18px;border-radius:22px;
       background:rgba(20,22,38,.97);
@@ -281,10 +299,10 @@
 
     @media(max-width:380px){
       #tm-bar .tm-btn.copy{display:none}
-      #tm-bar .tm-btn{padding:0 10px;font-size:11px}
-      #tm-bar .tm-btn.primary{min-width:60px}
+      #tm-bar .tm-btn{padding:0 9px;font-size:11px}
+      #tm-bar .tm-btn.primary{min-width:56px}
       #tm-bar .tm-field input{font-size:11px}
-      #tm-bar .tm-otp{font-size:20px;letter-spacing:4px}
+      #tm-bar .tm-otp{font-size:19px;letter-spacing:4px;height:40px}
     }
     `;
 
@@ -297,19 +315,30 @@
         const bar = document.createElement('div');
         bar.id = 'tm-bar';
         bar.innerHTML = `
-          <div class="tm-head">
-            <span><span class="tm-dot off" id="tm-dot"></span>TempMail</span>
-          </div>
-          <div class="tm-row">
-            <div class="tm-field" title="Email">
-              <input id="tm-email" readonly placeholder="klik Load"/>
+          <div class="tm-body">
+            <div class="tm-head">
+              <div class="tm-left" id="tm-toggle">
+                <span class="tm-dot off" id="tm-dot"></span>
+                <span class="tm-title">TempMail</span>
+              </div>
+              <button class="tm-min" id="tm-min" title="Minimize">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
             </div>
-            <button id="tm-load" class="tm-btn primary" title="Email + OTP baru">Load</button>
-            <button id="tm-reset" class="tm-btn danger" title="Reset">Reset</button>
-            <button id="tm-cp-e" class="tm-btn copy" title="Copy email">Copy</button>
-          </div>
-          <div class="tm-row">
-            <div class="tm-otp" id="tm-big"></div>
+            <div class="tm-row">
+              <div class="tm-field" title="Email">
+                <input id="tm-email" readonly placeholder="klik Load"/>
+              </div>
+              <button id="tm-load" class="tm-btn primary" title="Email + OTP baru">Load</button>
+              <button id="tm-reset" class="tm-btn danger" title="Reset">Reset</button>
+              <button id="tm-cp-e" class="tm-btn copy" title="Copy email">Copy</button>
+            </div>
+            <div class="tm-row">
+              <div class="tm-otp" id="tm-big"></div>
+            </div>
           </div>
         `;
         document.body.appendChild(bar);
@@ -345,6 +374,13 @@
         }
     };
 
+    const setMin = (min) => {
+        const bar = $('tm-bar');
+        if (!bar) return;
+        bar.classList.toggle('min', min);
+        gmSet(KEY_MIN, min ? '1' : '');
+    };
+
     const resetAll = () => {
         aborted = true;
         waiting = false;
@@ -361,7 +397,9 @@
         const bigEl = $('tm-big');
         const loadBtn = $('tm-load');
         const resetBtn = $('tm-reset');
-        if (!emailEl || !bigEl || !loadBtn || !resetBtn) return;
+        const minBtn = $('tm-min');
+        const toggle = $('tm-toggle');
+        if (!emailEl || !bigEl || !loadBtn || !resetBtn || !minBtn) return;
 
         const copyEmail = async () =>
             (await copy(gmGet(KEY_EMAIL)))
@@ -371,6 +409,16 @@
         emailEl.onclick = copyEmail;
         const cpBtn = $('tm-cp-e');
         if (cpBtn) cpBtn.onclick = copyEmail;
+
+        minBtn.onclick = () => {
+            const bar = $('tm-bar');
+            setMin(!bar.classList.contains('min'));
+        };
+
+        toggle.onclick = () => {
+            const bar = $('tm-bar');
+            setMin(!bar.classList.contains('min'));
+        };
 
         resetBtn.onclick = () => {
             resetAll();
@@ -418,11 +466,14 @@
         sync();
         bind();
 
+        if (gmGet(KEY_MIN)) setMin(true);
+
         const observer = new MutationObserver(() => {
             if (!$('tm-bar')) {
                 build();
                 sync();
                 bind();
+                if (gmGet(KEY_MIN)) setMin(true);
             }
         });
         observer.observe(document.documentElement, {
@@ -443,6 +494,7 @@
                 lastOtpId = Number(gmGet(KEY_LAST_ID)) || 0;
                 sync();
                 bind();
+                if (gmGet(KEY_MIN)) setMin(true);
             }
         });
     };
