@@ -1,5 +1,7 @@
 // ==UserScript==
 // @name         TempMail Helper
+// @namespace    tempmail-helper
+// @version      2.0
 // @match        https://*.instagram.com/*
 // @match        https://*.facebook.com/*
 // @run-at       document-end
@@ -20,25 +22,41 @@
     const LS_OTP = 'tm_otp';
     const LS_LAST_ID = 'tm_last_id';
     const LS_SESS = 'tm_sess';
+    const BC_NAME = 'tm_sync';
 
     const hasGM = typeof GM_setValue === 'function' && typeof GM_getValue === 'function';
+
+    let bc = null;
+    try { bc = new BroadcastChannel(BC_NAME); } catch { /* fallback */ }
+
+    const broadcast = (key, val) => {
+        try { bc?.postMessage({ key, val }); } catch { /* silent */ }
+    };
 
     const store = {
         get: (k) => {
             if (hasGM) {
-                try { return GM_getValue(k, '') || ''; } catch { /* fallback */ }
+                try {
+                    const v = GM_getValue(k, '');
+                    if (v) return String(v);
+                } catch { /* fallback */ }
             }
-            return localStorage.getItem(k) || '';
+            return localStorage.getItem(k) || sessionStorage.getItem(k) || '';
         },
         set: (k, v) => {
             const val = v !== '' && v != null ? String(v) : '';
             if (hasGM) {
                 try {
                     val ? GM_setValue(k, val) : GM_deleteValue(k);
-                    return;
                 } catch { /* fallback */ }
             }
-            val ? localStorage.setItem(k, val) : localStorage.removeItem(k);
+            try {
+                val ? localStorage.setItem(k, val) : localStorage.removeItem(k);
+            } catch { /* fallback */ }
+            try {
+                val ? sessionStorage.setItem(k, val) : sessionStorage.removeItem(k);
+            } catch { /* fallback */ }
+            broadcast(k, val);
         },
     };
 
@@ -48,6 +66,7 @@
             url,
             data: opt.body,
             headers: opt.headers || {},
+            cookie: opt.cookie || undefined,
             onload: r => {
                 if (opt.captureCookie && r.responseHeaders) {
                     const m = r.responseHeaders.match(/set-cookie:\s*([^\r\n]+)/i);
@@ -61,11 +80,6 @@
             onerror: err,
         })
     );
-
-    const cookieHeader = () => {
-        const s = store.get(LS_SESS);
-        return s ? `PHPSESSID=${s}` : '';
-    };
 
     const fetchEmail = async () => {
         const html = await req(BASE, { captureCookie: true });
@@ -86,16 +100,14 @@
         aborted = false;
         while (Date.now() < end && !aborted) {
             try {
-                const headers = {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                };
-                const ck = cookieHeader();
-                if (ck) headers['Cookie'] = ck;
-
+                const sess = store.get(LS_SESS);
                 const raw = await req(`${BASE}/template/checker.php`, {
                     method: 'POST',
-                    headers,
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
                     body: `last_id=${lastOtpId}`,
+                    cookie: sess ? `PHPSESSID=${sess}` : undefined,
                 });
                 const mails = JSON.parse(raw) || [];
                 for (const m of mails) {
@@ -445,6 +457,16 @@
                 sync();
             }
         });
+
+        try {
+            bc?.addEventListener('message', (e) => {
+                const { key } = e.data || {};
+                if (key === LS_EMAIL || key === LS_OTP || key === LS_LAST_ID) {
+                    lastOtpId = Number(store.get(LS_LAST_ID)) || 0;
+                    sync();
+                }
+            });
+        } catch { /* silent */ }
 
         window.addEventListener('pageshow', (e) => {
             if (e.persisted) {
