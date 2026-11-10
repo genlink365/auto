@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TempMail Helper
 // @namespace    tempmail-helper
-// @version      3.0
+// @version      3.1
 // @match        https://*.instagram.com/*
 // @match        https://*.facebook.com/*
 // @run-at       document-end
@@ -9,6 +9,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_deleteValue
+// @grant        GM_addValueChangeListener
 // @connect      tempemail.info
 // ==/UserScript==
 
@@ -21,7 +22,6 @@
     const KEY_EMAIL = 'tm_email';
     const KEY_OTP = 'tm_otp';
     const KEY_LAST_ID = 'tm_last_id';
-    const KEY_SESS = 'tm_sess';
 
     const gmGet = k => { try { return GM_getValue(k, '') || ''; } catch { return ''; } };
     const gmSet = (k, v) => {
@@ -34,7 +34,6 @@
             url,
             data: opt.body,
             headers: opt.headers || {},
-            cookie: opt.cookie || undefined,
             onload: r => ok(r.responseText),
             onerror: err,
         })
@@ -59,12 +58,10 @@
         aborted = false;
         while (Date.now() < end && !aborted) {
             try {
-                const sess = gmGet(KEY_SESS);
                 const raw = await req(`${BASE}/template/checker.php`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `last_id=${lastOtpId}`,
-                    cookie: sess ? `PHPSESSID=${sess}` : undefined,
                 });
                 const mails = JSON.parse(raw) || [];
                 for (const m of mails) {
@@ -330,7 +327,6 @@
         gmSet(KEY_EMAIL, '');
         gmSet(KEY_OTP, '');
         gmSet(KEY_LAST_ID, '0');
-        gmSet(KEY_SESS, '');
         sync();
     };
 
@@ -352,7 +348,7 @@
 
         resetBtn.onclick = () => {
             resetAll();
-            toast('Session direset');
+            toast('Direset');
         };
 
         loadBtn.onclick = async () => {
@@ -407,6 +403,21 @@
             childList: true,
             subtree: true,
         });
+
+        try {
+            GM_addValueChangeListener(KEY_EMAIL, (n, o, v, remote) => {
+                if (remote) sync();
+            });
+            GM_addValueChangeListener(KEY_OTP, (n, o, v, remote) => {
+                if (remote) sync();
+            });
+            GM_addValueChangeListener(KEY_LAST_ID, (n, o, v, remote) => {
+                if (remote) {
+                    lastOtpId = Number(v) || 0;
+                    sync();
+                }
+            });
+        } catch { /* silent */ }
 
         window.addEventListener('pageshow', (e) => {
             if (e.persisted) {
