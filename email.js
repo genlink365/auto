@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TempMail Helper
 // @namespace    tempmail-helper
-// @version      5.0
+// @version      5.1
 // @match        https://*.instagram.com/*
 // @match        https://*.facebook.com/*
 // @run-at       document-end
@@ -24,6 +24,7 @@
     const KEY_LAST_ID = 'tm_last_id';
     const KEY_SESS = 'tm_sess';
     const KEY_MIN = 'tm_min';
+    const KEY_PHONE = 'tm_phone';
 
     const gmGet = k => { try { return GM_getValue(k, '') || ''; } catch { return ''; } };
     const gmSet = (k, v) => {
@@ -63,6 +64,13 @@
 
     const otpFrom = subject =>
         (subject || '').match(/\b(\d{5})\b/)?.[1] || null;
+
+    const genPhone = () => {
+        const prefix = '62';
+        let n = '';
+        for (let i = 0; i < 10; i++) n += Math.floor(Math.random() * 10);
+        return prefix + n;
+    };
 
     let lastOtpId = Number(gmGet(KEY_LAST_ID)) || 0;
     let waiting = false;
@@ -143,7 +151,7 @@
       -webkit-tap-highlight-color:transparent;
       box-sizing:border-box;
       transition:max-height .28s cubic-bezier(.4,0,.2,1);
-      max-height:160px;overflow:hidden
+      max-height:200px;overflow:hidden
     }
     #tm-bar.min{max-height:36px}
 
@@ -223,6 +231,14 @@
     #tm-bar .tm-field input::placeholder{
       color:#565a80;font-weight:500;font-size:11px
     }
+    #tm-bar .tm-field.phone{
+      border-color:rgba(92,232,154,.22);
+      background:rgba(80,220,140,.05)
+    }
+    #tm-bar .tm-field.phone:focus-within{
+      border-color:rgba(92,232,154,.55)
+    }
+    #tm-bar .tm-field.phone input{color:#5ce89a}
 
     #tm-bar .tm-btn{
       height:36px;padding:0 12px;
@@ -253,6 +269,15 @@
       background:rgba(255,107,107,.28);color:#fff
     }
     #tm-bar .tm-btn.copy{padding:0 10px;font-size:11px}
+    #tm-bar .tm-btn.gen{
+      background:rgba(80,220,140,.14);
+      border-color:rgba(80,220,140,.3);
+      color:#5ce89a;
+      padding:0 10px;font-size:11px
+    }
+    #tm-bar .tm-btn.gen:hover{
+      background:rgba(80,220,140,.28);color:#fff
+    }
 
     #tm-bar .tm-otp{
       height:42px;width:100%;
@@ -280,7 +305,7 @@
 
     #tm-toast{
       position:fixed;left:50%;
-      bottom:calc(140px + env(safe-area-inset-bottom,0px));
+      bottom:calc(180px + env(safe-area-inset-bottom,0px));
       transform:translate(-50%,14px);
       padding:9px 18px;border-radius:22px;
       background:rgba(20,22,38,.97);
@@ -337,6 +362,13 @@
               <button id="tm-cp-e" class="tm-btn copy" title="Copy email">Copy</button>
             </div>
             <div class="tm-row">
+              <div class="tm-field phone" title="Nomor HP">
+                <input id="tm-phone" readonly placeholder="62..."/>
+              </div>
+              <button id="tm-gen-phone" class="tm-btn gen" title="Generate nomor">Gen</button>
+              <button id="tm-cp-p" class="tm-btn copy" title="Copy nomor">Copy</button>
+            </div>
+            <div class="tm-row">
               <div class="tm-otp" id="tm-big"></div>
             </div>
           </div>
@@ -350,6 +382,7 @@
 
     const sync = () => {
         const emailEl = $('tm-email');
+        const phoneEl = $('tm-phone');
         const bigEl = $('tm-big');
         const dot = $('tm-dot');
         if (!emailEl || !bigEl) return;
@@ -358,6 +391,7 @@
         const otp = gmGet(KEY_OTP);
 
         emailEl.value = email;
+        if (phoneEl) phoneEl.value = gmGet(KEY_PHONE);
 
         if (waiting) {
             bigEl.classList.add('waiting');
@@ -394,6 +428,7 @@
 
     const bind = () => {
         const emailEl = $('tm-email');
+        const phoneEl = $('tm-phone');
         const bigEl = $('tm-big');
         const loadBtn = $('tm-load');
         const resetBtn = $('tm-reset');
@@ -406,9 +441,26 @@
                 ? toast('Email tersalin ✓')
                 : toast('Kosong');
 
+        const copyPhone = async () =>
+            (await copy(gmGet(KEY_PHONE)))
+                ? toast('Nomor tersalin ✓')
+                : toast('Kosong');
+
         emailEl.onclick = copyEmail;
         const cpBtn = $('tm-cp-e');
         if (cpBtn) cpBtn.onclick = copyEmail;
+
+        if (phoneEl) phoneEl.onclick = copyPhone;
+        const cpPhone = $('tm-cp-p');
+        if (cpPhone) cpPhone.onclick = copyPhone;
+
+        const genBtn = $('tm-gen-phone');
+        if (genBtn) genBtn.onclick = () => {
+            const phone = genPhone();
+            gmSet(KEY_PHONE, phone);
+            sync();
+            toast('Nomor baru ✓');
+        };
 
         minBtn.onclick = () => {
             const bar = $('tm-bar');
@@ -484,6 +536,7 @@
         try {
             GM_addValueChangeListener(KEY_EMAIL, (n, o, v, r) => { if (r) sync(); });
             GM_addValueChangeListener(KEY_OTP, (n, o, v, r) => { if (r) sync(); });
+            GM_addValueChangeListener(KEY_PHONE, (n, o, v, r) => { if (r) sync(); });
             GM_addValueChangeListener(KEY_LAST_ID, (n, o, v, r) => {
                 if (r) { lastOtpId = Number(v) || 0; sync(); }
             });
