@@ -13,6 +13,14 @@
     const BASE = 'https://tempemail.info';
     const POLL = 3000;
     const TIMEOUT = 180_000;
+    const LS_EMAIL = 'tm_email';
+    const LS_OTP = 'tm_otp';
+
+    /* ---------- STORAGE (tahan refresh & hapus data) ---------- */
+    const store = {
+        get: k => localStorage.getItem(k) || '',
+        set: (k, v) => v ? localStorage.setItem(k, v) : localStorage.removeItem(k),
+    };
 
     /* ---------- NETWORK ---------- */
     const req = (url, opt = {}) => new Promise((ok, err) =>
@@ -66,89 +74,85 @@
         t.textContent = msg;
         t.classList.add('show');
         clearTimeout(t._timer);
-        t._timer = setTimeout(() => t.classList.remove('show'), 1800);
+        t._timer = setTimeout(() => t.classList.remove('show'), 1600);
     };
 
     const copy = async (text) => {
         if (!text) return false;
-        try {
-            await navigator.clipboard.writeText(text);
-            return true;
-        } catch {
-            return false;
-        }
+        try { await navigator.clipboard.writeText(text); return true; }
+        catch { return false; }
     };
 
     /* ---------- STYLES ---------- */
     const CSS = `
-    #tm-wrap{position:fixed;top:14px;right:14px;z-index:999999;
-      width:min(270px,calc(100vw - 28px));
-      font:13px/1.4 -apple-system,'Segoe UI',system-ui,sans-serif;
-      user-select:none;-webkit-tap-highlight-color:transparent}
+    #tm-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+      z-index:999999;display:flex;gap:6px;align-items:center;
+      padding:8px 10px;margin-bottom:10px;
+      background:rgba(14,14,22,.9);
+      backdrop-filter:blur(18px) saturate(180%);
+      -webkit-backdrop-filter:blur(18px) saturate(180%);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;
+      box-shadow:0 8px 32px rgba(0,0,0,.55);
+      font:12px -apple-system,'Segoe UI',system-ui,sans-serif;
+      color:#e0e3ff;user-select:none;
+      max-width:calc(100vw - 20px);
+      -webkit-tap-highlight-color:transparent;
+      animation:tmIn .3s cubic-bezier(.4,0,.2,1)}
 
-    #tm{display:flex;flex-direction:column;gap:10px;padding:12px;
-      background:rgba(14,14,22,.88);
-      backdrop-filter:blur(20px) saturate(180%);
-      -webkit-backdrop-filter:blur(20px) saturate(180%);
-      border:1px solid rgba(255,255,255,.08);border-radius:16px;
-      box-shadow:0 12px 48px rgba(0,0,0,.55),
-                 inset 0 1px 0 rgba(255,255,255,.06);
-      color:#e0e3ff}
+    @keyframes tmIn{from{opacity:0;transform:translate(-50%,8px)}
+      to{opacity:1;transform:translate(-50%,0)}}
 
-    .tm-title{font:600 10px system-ui,sans-serif;letter-spacing:.6px;
-      text-transform:uppercase;color:#7c88ff;margin-bottom:2px}
+    #tm-bar button,#tm-bar input{border:none;outline:none;
+      font:inherit;color:inherit;background:transparent}
 
-    .tm-row{display:flex;gap:6px;align-items:stretch}
+    #tm-bar .tm-field{display:flex;align-items:center;gap:4px;
+      padding:0 8px;height:30px;border-radius:8px;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(124,136,255,.18);
+      transition:border-color .2s}
+    #tm-bar .tm-field:focus-within{border-color:rgba(124,136,255,.5)}
+    #tm-bar .tm-field input{width:130px;min-width:0;
+      font:11px 'SF Mono','Consolas',monospace;letter-spacing:.3px}
+    #tm-bar .tm-field input::placeholder{color:#565a80}
 
-    .tm-input{flex:1;min-width:0;height:34px;padding:0 10px;
-      border-radius:9px;border:1px solid rgba(124,136,255,.22);
-      background:rgba(0,0,0,.45);color:#e0e3ff;
-      font:12px 'SF Mono','Consolas',monospace;outline:none;
-      transition:border-color .2s,background .2s}
-    .tm-input:focus{border-color:rgba(124,136,255,.6);
-      background:rgba(0,0,0,.6)}
-    .tm-input::placeholder{color:#565a80;font-size:11px}
+    #tm-bar .tm-btn{height:30px;padding:0 10px;border-radius:8px;
+      cursor:pointer;font:600 11px system-ui,sans-serif;
+      background:rgba(124,136,255,.15);
+      border:1px solid rgba(124,136,255,.25);
+      color:#dfe2ff;transition:all .18s;white-space:nowrap}
+    #tm-bar .tm-btn:hover{background:rgba(124,136,255,.3);color:#fff}
+    #tm-bar .tm-btn:active{transform:scale(.95)}
+    #tm-bar .tm-btn:disabled{opacity:.4;cursor:not-allowed}
 
-    .tm-btn{height:34px;padding:0 12px;border-radius:9px;cursor:pointer;
-      border:1px solid rgba(124,136,255,.3);
-      background:rgba(124,136,255,.15);color:#dfe2ff;
-      font:600 11px system-ui,sans-serif;
-      transition:all .18s ease;flex-shrink:0}
-    .tm-btn:hover{background:rgba(124,136,255,.3);color:#fff}
-    .tm-btn:active{transform:scale(.96)}
-    .tm-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
-    .tm-btn.primary{background:rgba(124,136,255,.28);
-      border-color:rgba(124,136,255,.6);color:#fff}
-
-    .tm-otp{font:700 24px 'SF Mono','Consolas',monospace;
-      letter-spacing:5px;text-align:center;padding:10px 0;
-      color:#5ce89a;cursor:pointer;border-radius:10px;
-      background:rgba(80,220,140,.08);
-      border:1px solid rgba(80,220,140,.18);
+    #tm-bar .tm-otp{font:700 14px 'SF Mono','Consolas',monospace;
+      letter-spacing:2px;color:#5ce89a;cursor:pointer;
+      padding:0 8px;height:30px;display:flex;align-items:center;
+      border-radius:8px;background:rgba(80,220,140,.08);
       transition:background .2s}
-    .tm-otp:hover{background:rgba(80,220,140,.14)}
-    .tm-otp:active{transform:scale(.98)}
-    .tm-otp:empty{display:none}
+    #tm-bar .tm-otp:hover{background:rgba(80,220,140,.16)}
+    #tm-bar .tm-otp:empty{display:none}
 
-    #tm-toast{position:fixed;bottom:24px;left:50%;
-      transform:translate(-50%,24px);
-      padding:9px 18px;border-radius:22px;
+    #tm-toast{position:fixed;bottom:56px;left:50%;
+      transform:translate(-50%,16px);
+      padding:8px 16px;border-radius:20px;
       background:rgba(20,22,38,.96);
       border:1px solid rgba(124,136,255,.35);
       color:#dfe2ff;font:500 12px system-ui,sans-serif;
       opacity:0;pointer-events:none;z-index:1000000;
-      transition:opacity .3s,transform .3s cubic-bezier(.4,0,.2,1);
-      max-width:calc(100vw - 40px);white-space:nowrap;
-      overflow:hidden;text-overflow:ellipsis;
+      transition:opacity .25s,transform .25s cubic-bezier(.4,0,.2,1);
+      max-width:calc(100vw - 40px);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
       backdrop-filter:blur(12px)}
     #tm-toast.show{opacity:1;transform:translate(-50%,0)}
 
     @media(max-width:480px){
-      #tm-wrap{top:10px;right:10px;width:calc(100vw - 20px);max-width:260px}
-      #tm{padding:10px;border-radius:14px;gap:8px}
-      .tm-input,.tm-btn{height:32px;font-size:11px}
-      .tm-otp{font-size:21px;letter-spacing:4px;padding:8px 0}
-      #tm-toast{font-size:11px;padding:8px 14px}
+      #tm-bar{padding:6px;margin-bottom:6px;gap:4px;border-radius:12px}
+      #tm-bar .tm-field{padding:0 6px;height:28px}
+      #tm-bar .tm-field input{width:96px;font-size:10px}
+      #tm-bar .tm-btn{height:28px;padding:0 8px;font-size:10px}
+      #tm-bar .tm-otp{height:28px;font-size:13px;padding:0 6px}
+      #tm-toast{font-size:11px;padding:7px 13px;bottom:48px}
     }
     `;
 
@@ -158,36 +162,28 @@
         style.textContent = CSS;
         document.head.appendChild(style);
 
-        const wrap = document.createElement('div');
-        wrap.id = 'tm-wrap';
-        wrap.innerHTML = `
-          <div id="tm">
-            <div>
-              <div class="tm-title">Email Temp</div>
-              <div class="tm-row">
-                <input id="tm-email" class="tm-input" readonly placeholder="(belum ada)"/>
-                <button id="tm-new" class="tm-btn primary">Baru</button>
-                <button id="tm-cp-e" class="tm-btn">Copy</button>
-              </div>
-            </div>
-            <div>
-              <div class="tm-title">OTP</div>
-              <div class="tm-row">
-                <input id="tm-otp" class="tm-input" readonly placeholder="(menunggu)"/>
-                <button id="tm-wait" class="tm-btn">Ambil</button>
-              </div>
-            </div>
-            <div class="tm-otp" id="tm-big"></div>
+        const bar = document.createElement('div');
+        bar.id = 'tm-bar';
+        bar.innerHTML = `
+          <div class="tm-field">
+            <input id="tm-email" readonly placeholder="email..."/>
           </div>
+          <button id="tm-new" class="tm-btn" title="Email baru">Baru</button>
+          <button id="tm-cp-e" class="tm-btn" title="Copy email">Copy</button>
+          <div class="tm-field">
+            <input id="tm-otp" readonly placeholder="otp..."/>
+          </div>
+          <button id="tm-wait" class="tm-btn" title="Ambil OTP">Ambil</button>
+          <div class="tm-otp" id="tm-big"></div>
         `;
-        document.body.appendChild(wrap);
+        document.body.appendChild(bar);
 
         const toastEl = document.createElement('div');
         toastEl.id = 'tm-toast';
         document.body.appendChild(toastEl);
     };
 
-    /* ---------- HANDLERS ---------- */
+    /* ---------- RESTORE & HANDLERS ---------- */
     const init = () => {
         build();
 
@@ -196,11 +192,19 @@
         const bigEl = $('tm-big');
         const waitBtn = $('tm-wait');
 
+        // restore dari localStorage
+        emailEl.value = store.get(LS_EMAIL);
+        otpEl.value = store.get(LS_OTP);
+        if (otpEl.value) bigEl.textContent = otpEl.value;
+
         $('tm-new').onclick = async () => {
             try {
-                emailEl.value = await fetchEmail();
+                const email = await fetchEmail();
+                emailEl.value = email;
                 otpEl.value = '';
                 bigEl.textContent = '';
+                store.set(LS_EMAIL, email);
+                store.set(LS_OTP, '');
                 toast('Email baru siap ✓');
             } catch {
                 toast('Gagal ambil email');
@@ -218,6 +222,7 @@
                 if (otp) {
                     otpEl.value = otp;
                     bigEl.textContent = otp;
+                    store.set(LS_OTP, otp);
                     toast('OTP diterima ✓');
                 } else {
                     toast('Timeout OTP');
