@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TempMail Helper
 // @namespace    tempmail-helper
-// @version      2.0
+// @version      3.0
 // @match        https://*.instagram.com/*
 // @match        https://*.facebook.com/*
 // @run-at       document-end
@@ -18,46 +18,14 @@
     const BASE = 'https://tempemail.info';
     const POLL = 3000;
     const TIMEOUT = 180_000;
-    const LS_EMAIL = 'tm_email';
-    const LS_OTP = 'tm_otp';
-    const LS_LAST_ID = 'tm_last_id';
-    const LS_SESS = 'tm_sess';
-    const BC_NAME = 'tm_sync';
+    const KEY_EMAIL = 'tm_email';
+    const KEY_OTP = 'tm_otp';
+    const KEY_LAST_ID = 'tm_last_id';
+    const KEY_SESS = 'tm_sess';
 
-    const hasGM = typeof GM_setValue === 'function' && typeof GM_getValue === 'function';
-
-    let bc = null;
-    try { bc = new BroadcastChannel(BC_NAME); } catch { /* fallback */ }
-
-    const broadcast = (key, val) => {
-        try { bc?.postMessage({ key, val }); } catch { /* silent */ }
-    };
-
-    const store = {
-        get: (k) => {
-            if (hasGM) {
-                try {
-                    const v = GM_getValue(k, '');
-                    if (v) return String(v);
-                } catch { /* fallback */ }
-            }
-            return localStorage.getItem(k) || sessionStorage.getItem(k) || '';
-        },
-        set: (k, v) => {
-            const val = v !== '' && v != null ? String(v) : '';
-            if (hasGM) {
-                try {
-                    val ? GM_setValue(k, val) : GM_deleteValue(k);
-                } catch { /* fallback */ }
-            }
-            try {
-                val ? localStorage.setItem(k, val) : localStorage.removeItem(k);
-            } catch { /* fallback */ }
-            try {
-                val ? sessionStorage.setItem(k, val) : sessionStorage.removeItem(k);
-            } catch { /* fallback */ }
-            broadcast(k, val);
-        },
+    const gmGet = k => { try { return GM_getValue(k, '') || ''; } catch { return ''; } };
+    const gmSet = (k, v) => {
+        try { v ? GM_setValue(k, v) : GM_deleteValue(k); } catch { /* silent */ }
     };
 
     const req = (url, opt = {}) => new Promise((ok, err) =>
@@ -67,31 +35,22 @@
             data: opt.body,
             headers: opt.headers || {},
             cookie: opt.cookie || undefined,
-            onload: r => {
-                if (opt.captureCookie && r.responseHeaders) {
-                    const m = r.responseHeaders.match(/set-cookie:\s*([^\r\n]+)/i);
-                    if (m) {
-                        const c = m[1].match(/PHPSESSID=([^;]+)/);
-                        if (c) store.set(LS_SESS, c[1]);
-                    }
-                }
-                ok(r.responseText);
-            },
+            onload: r => ok(r.responseText),
             onerror: err,
         })
     );
 
     const fetchEmail = async () => {
-        const html = await req(BASE, { captureCookie: true });
+        const html = await req(BASE);
         const m = html.match(/emailEncoded\s*=\s*"([^"]+)"/);
         if (!m) throw new Error('email tidak ditemukan');
         return atob(m[1]);
     };
 
-    const otpFrom = (subject) =>
+    const otpFrom = subject =>
         (subject || '').match(/\b(\d{5})\b/)?.[1] || null;
 
-    let lastOtpId = Number(store.get(LS_LAST_ID)) || 0;
+    let lastOtpId = Number(gmGet(KEY_LAST_ID)) || 0;
     let waiting = false;
     let aborted = false;
 
@@ -100,23 +59,21 @@
         aborted = false;
         while (Date.now() < end && !aborted) {
             try {
-                const sess = store.get(LS_SESS);
+                const sess = gmGet(KEY_SESS);
                 const raw = await req(`${BASE}/template/checker.php`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `last_id=${lastOtpId}`,
                     cookie: sess ? `PHPSESSID=${sess}` : undefined,
                 });
                 const mails = JSON.parse(raw) || [];
                 for (const m of mails) {
                     lastOtpId = Math.max(lastOtpId, m.id || 0);
-                    store.set(LS_LAST_ID, String(lastOtpId));
+                    gmSet(KEY_LAST_ID, String(lastOtpId));
                     const otp = otpFrom(m.subject);
                     if (otp) return otp;
                 }
-                tick?.('Menunggu OTP...');
+                tick?.();
             } catch { /* silent */ }
             if (aborted) break;
             await new Promise(r => setTimeout(r, POLL));
@@ -346,8 +303,8 @@
         const dot = $('tm-dot');
         if (!emailEl || !bigEl) return;
 
-        const email = store.get(LS_EMAIL);
-        const otp = store.get(LS_OTP);
+        const email = gmGet(KEY_EMAIL);
+        const otp = gmGet(KEY_OTP);
 
         emailEl.value = email;
 
@@ -370,10 +327,10 @@
         aborted = true;
         waiting = false;
         lastOtpId = 0;
-        store.set(LS_EMAIL, '');
-        store.set(LS_OTP, '');
-        store.set(LS_LAST_ID, '0');
-        store.set(LS_SESS, '');
+        gmSet(KEY_EMAIL, '');
+        gmSet(KEY_OTP, '');
+        gmSet(KEY_LAST_ID, '0');
+        gmSet(KEY_SESS, '');
         sync();
     };
 
@@ -385,7 +342,7 @@
         if (!emailEl || !bigEl || !loadBtn || !resetBtn) return;
 
         const copyEmail = async () =>
-            (await copy(store.get(LS_EMAIL)))
+            (await copy(gmGet(KEY_EMAIL)))
                 ? toast('Email tersalin ✓')
                 : toast('Kosong');
 
@@ -410,12 +367,12 @@
 
             try {
                 const email = await fetchEmail();
-                store.set(LS_EMAIL, email);
+                gmSet(KEY_EMAIL, email);
                 sync();
 
                 const otp = await fetchOtp(() => sync());
                 if (otp) {
-                    store.set(LS_OTP, otp);
+                    gmSet(KEY_OTP, otp);
                     toast('OTP diterima ✓');
                 } else if (!aborted) {
                     toast('Timeout OTP');
@@ -431,7 +388,7 @@
         };
 
         bigEl.onclick = async () =>
-            (await copy(store.get(LS_OTP))) ? toast('OTP tersalin ✓') : 0;
+            (await copy(gmGet(KEY_OTP))) ? toast('OTP tersalin ✓') : 0;
     };
 
     const init = () => {
@@ -451,26 +408,9 @@
             subtree: true,
         });
 
-        window.addEventListener('storage', (e) => {
-            if (e.key === LS_EMAIL || e.key === LS_OTP || e.key === LS_LAST_ID) {
-                lastOtpId = Number(store.get(LS_LAST_ID)) || 0;
-                sync();
-            }
-        });
-
-        try {
-            bc?.addEventListener('message', (e) => {
-                const { key } = e.data || {};
-                if (key === LS_EMAIL || key === LS_OTP || key === LS_LAST_ID) {
-                    lastOtpId = Number(store.get(LS_LAST_ID)) || 0;
-                    sync();
-                }
-            });
-        } catch { /* silent */ }
-
         window.addEventListener('pageshow', (e) => {
             if (e.persisted) {
-                lastOtpId = Number(store.get(LS_LAST_ID)) || 0;
+                lastOtpId = Number(gmGet(KEY_LAST_ID)) || 0;
                 sync();
                 bind();
             }
