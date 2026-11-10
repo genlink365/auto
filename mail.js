@@ -16,6 +16,7 @@
     const LS_EMAIL = 'tm_email';
     const LS_OTP = 'tm_otp';
     const LS_LAST_ID = 'tm_last_id';
+    const LS_SESS = 'tm_sess';
 
     const store = {
         get: k => localStorage.getItem(k) || '',
@@ -30,13 +31,27 @@
             url,
             data: opt.body,
             headers: opt.headers || {},
-            onload: r => ok(r.responseText),
+            onload: r => {
+                if (opt.captureCookie && r.responseHeaders) {
+                    const m = r.responseHeaders.match(/set-cookie:\s*([^\r\n]+)/i);
+                    if (m) {
+                        const c = m[1].match(/PHPSESSID=([^;]+)/);
+                        if (c) store.set(LS_SESS, c[1]);
+                    }
+                }
+                ok(r.responseText);
+            },
             onerror: err,
         })
     );
 
+    const cookieHeader = () => {
+        const s = store.get(LS_SESS);
+        return s ? `PHPSESSID=${s}` : '';
+    };
+
     const fetchEmail = async () => {
-        const html = await req(BASE);
+        const html = await req(BASE, { captureCookie: true });
         const m = html.match(/emailEncoded\s*=\s*"([^"]+)"/);
         if (!m) throw new Error('email tidak ditemukan');
         return atob(m[1]);
@@ -47,16 +62,22 @@
 
     let lastOtpId = Number(store.get(LS_LAST_ID)) || 0;
     let waiting = false;
+    let aborted = false;
 
     const fetchOtp = async (tick) => {
         const end = Date.now() + TIMEOUT;
-        while (Date.now() < end) {
+        aborted = false;
+        while (Date.now() < end && !aborted) {
             try {
+                const headers = {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                };
+                const ck = cookieHeader();
+                if (ck) headers['Cookie'] = ck;
+
                 const raw = await req(`${BASE}/template/checker.php`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
+                    headers,
                     body: `last_id=${lastOtpId}`,
                 });
                 const mails = JSON.parse(raw) || [];
@@ -68,6 +89,7 @@
                 }
                 tick?.('Menunggu OTP...');
             } catch { /* silent */ }
+            if (aborted) break;
             await new Promise(r => setTimeout(r, POLL));
         }
         return null;
@@ -189,6 +211,13 @@
       background:rgba(124,136,255,.3);
       border-color:rgba(124,136,255,.5);color:#fff
     }
+    #tm-bar .tm-btn.danger{
+      background:rgba(255,107,107,.14);
+      border-color:rgba(255,107,107,.3);color:#ff8f8f
+    }
+    #tm-bar .tm-btn.danger:hover{
+      background:rgba(255,107,107,.28);color:#fff
+    }
 
     #tm-bar .tm-otp{
       height:34px;padding:0 14px;
@@ -267,7 +296,8 @@
             <div class="tm-field" title="Email">
               <input id="tm-email" readonly placeholder="klik Load"/>
             </div>
-            <button id="tm-load" class="tm-btn primary" title="Email baru">Load</button>
+            <button id="tm-load" class="tm-btn primary" title="Email + OTP baru">Load</button>
+            <button id="tm-reset" class="tm-btn danger" title="Reset semua">Reset</button>
             <button id="tm-cp-e" class="tm-btn copy" title="Copy email">Copy</button>
           </div>
           <div class="tm-row">
@@ -307,11 +337,23 @@
         }
     };
 
+    const resetAll = () => {
+        aborted = true;
+        waiting = false;
+        lastOtpId = 0;
+        store.set(LS_EMAIL, '');
+        store.set(LS_OTP, '');
+        store.set(LS_LAST_ID, '0');
+        store.set(LS_SESS, '');
+        sync();
+    };
+
     const bind = () => {
         const emailEl = $('tm-email');
         const bigEl = $('tm-big');
         const loadBtn = $('tm-load');
-        if (!emailEl || !bigEl || !loadBtn) return;
+        const resetBtn = $('tm-reset');
+        if (!emailEl || !bigEl || !loadBtn || !resetBtn) return;
 
         const copyEmail = async () =>
             (await copy(store.get(LS_EMAIL)))
@@ -322,15 +364,19 @@
         const cpBtn = $('tm-cp-e');
         if (cpBtn) cpBtn.onclick = copyEmail;
 
+        resetBtn.onclick = () => {
+            resetAll();
+            toast('Session direset');
+        };
+
         loadBtn.onclick = async () => {
             if (waiting) return;
+
+            resetAll();
+
             loadBtn.disabled = true;
             loadBtn.textContent = '...';
             waiting = true;
-            lastOtpId = 0;
-            store.set(LS_EMAIL, '');
-            store.set(LS_OTP, '');
-            store.set(LS_LAST_ID, '0');
             sync();
 
             try {
@@ -342,11 +388,11 @@
                 if (otp) {
                     store.set(LS_OTP, otp);
                     toast('OTP diterima ✓');
-                } else {
+                } else if (!aborted) {
                     toast('Timeout OTP');
                 }
             } catch {
-                toast('Gagal load');
+                if (!aborted) toast('Gagal load');
             } finally {
                 waiting = false;
                 loadBtn.disabled = false;
