@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         FB Auto Register + Security Panel
+// @name         FB Via Browser
 // @namespace    https://viayoo.com/6rpkld
 // @version      14.0
 // @match        https://*.facebook.com/*
