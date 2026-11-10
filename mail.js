@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TempMail Helper
 // @namespace    tempmail-helper
-// @version      4.0
+// @version      4.2
 // @match        https://*.instagram.com/*
 // @match        https://*.facebook.com/*
 // @run-at       document-end
@@ -22,31 +22,26 @@
     const KEY_EMAIL = 'tm_email';
     const KEY_OTP = 'tm_otp';
     const KEY_LAST_ID = 'tm_last_id';
-    const KEY_SESS = 'tm_sess'; // PHPSESSID
+    const KEY_SESS = 'tm_sess';
 
     const gmGet = k => { try { return GM_getValue(k, '') || ''; } catch { return ''; } };
     const gmSet = (k, v) => {
         try { v ? GM_setValue(k, v) : GM_deleteValue(k); } catch { /* silent */ }
     };
 
-    // === FUNGSI REQ YANG MENANGKAP SET-COOKIE ===
     const req = (url, opt = {}) => new Promise((ok, err) =>
         GM_xmlhttpRequest({
             method: opt.method || 'GET',
             url,
             data: opt.body,
             headers: opt.headers || {},
-            // Kirim cookie manual jika ada
             cookie: opt.cookie || undefined,
             onload: r => {
-                // Tangkap Set-Cookie dari response
                 if (r.responseHeaders) {
-                    const setCookie = r.responseHeaders.match(/set-cookie:\s*([^\r\n]+)/i);
-                    if (setCookie) {
-                        const phpsessid = setCookie[1].match(/PHPSESSID=([^;]+)/);
-                        if (phpsessid) {
-                            gmSet(KEY_SESS, phpsessid[1]);
-                        }
+                    const sc = r.responseHeaders.match(/set-cookie:\s*([^\r\n]+)/i);
+                    if (sc) {
+                        const p = sc[1].match(/PHPSESSID=([^;]+)/);
+                        if (p) gmSet(KEY_SESS, p[1]);
                     }
                 }
                 ok(r.responseText);
@@ -55,12 +50,10 @@
         })
     );
 
-    // === FETCH EMAIL (Tangkap PHPSESSID) ===
     const fetchEmail = async () => {
-        // Kirim cookie lama jika ada (untuk jaga-jaga)
-        const oldSess = gmGet(KEY_SESS);
+        const old = gmGet(KEY_SESS);
         const html = await req(BASE, {
-            cookie: oldSess ? `PHPSESSID=${oldSess}` : undefined,
+            cookie: old ? `PHPSESSID=${old}` : undefined,
         });
         const m = html.match(/emailEncoded\s*=\s*"([^"]+)"/);
         if (!m) throw new Error('email tidak ditemukan');
@@ -74,25 +67,22 @@
     let waiting = false;
     let aborted = false;
 
-    // === FETCH OTP (Wajib Kirim PHPSESSID) ===
     const fetchOtp = async (tick) => {
         const end = Date.now() + TIMEOUT;
         aborted = false;
         while (Date.now() < end && !aborted) {
             try {
                 const sess = gmGet(KEY_SESS);
-                // JIKA PHPSESSID KOSONG, JANGAN LANJUT (karena pasti gagal)
                 if (!sess) {
-                    tick?.('Session hilang, coba Load ulang');
+                    tick?.('Session hilang');
                     await new Promise(r => setTimeout(r, POLL));
                     continue;
                 }
-
                 const raw = await req(`${BASE}/template/checker.php`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `last_id=${lastOtpId}`,
-                    cookie: `PHPSESSID=${sess}`, // <-- KIRIM PAKSA
+                    cookie: `PHPSESSID=${sess}`,
                 });
                 const mails = JSON.parse(raw) || [];
                 for (const m of mails) {
@@ -117,15 +107,13 @@
         t.textContent = msg;
         t.classList.add('show');
         clearTimeout(t._timer);
-        t._timer = setTimeout(() => t.classList.remove('show'), 1600);
+        t._timer = setTimeout(() => t.classList.remove('show'), 1500);
     };
 
     const copy = async (text) => {
         if (!text) return false;
-        try {
-            await navigator.clipboard.writeText(text);
-            return true;
-        } catch {
+        try { await navigator.clipboard.writeText(text); return true; }
+        catch {
             try {
                 const ta = document.createElement('textarea');
                 ta.value = text;
@@ -139,7 +127,166 @@
         }
     };
 
-    const CSS = `/* ... (CSS sama persis seperti sebelumnya, tidak saya ubah) ... */`;
+    const CSS = `
+    #tm-bar{
+      position:fixed;
+      left:0;right:0;bottom:0;
+      width:100%;
+      z-index:2147483647;
+      display:flex;flex-direction:column;
+      gap:6px;
+      padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));
+      background:rgba(14,14,22,.97);
+      -webkit-backdrop-filter:blur(24px) saturate(180%);
+      backdrop-filter:blur(24px) saturate(180%);
+      border-top:1px solid rgba(255,255,255,.08);
+      box-shadow:0 -8px 32px rgba(0,0,0,.5);
+      font:12px -apple-system,'Segoe UI',system-ui,sans-serif;
+      color:#e0e3ff;
+      user-select:none;
+      -webkit-tap-highlight-color:transparent;
+      animation:tmIn .28s cubic-bezier(.4,0,.2,1);
+      box-sizing:border-box
+    }
+    @keyframes tmIn{
+      from{opacity:0;transform:translateY(20px)}
+      to{opacity:1;transform:translateY(0)}
+    }
+
+    #tm-bar .tm-head{
+      display:flex;align-items:center;justify-content:space-between;
+      font:600 10px -apple-system,system-ui,sans-serif;
+      letter-spacing:.8px;text-transform:uppercase;
+      color:#7c88ff;padding:0 2px
+    }
+    #tm-bar .tm-head .tm-dot{
+      display:inline-block;width:7px;height:7px;border-radius:50%;
+      background:#5ce89a;margin-right:6px;vertical-align:middle;
+      box-shadow:0 0 8px #5ce89a;
+      transition:background .3s,box-shadow .3s
+    }
+    #tm-bar .tm-head .tm-dot.off{background:#565a80;box-shadow:none}
+    #tm-bar .tm-head .tm-dot.wait{
+      background:#ffb347;box-shadow:0 0 8px #ffb347;
+      animation:tmPulse 1.2s ease-in-out infinite
+    }
+    @keyframes tmPulse{
+      0%,100%{opacity:1}
+      50%{opacity:.4}
+    }
+
+    #tm-bar .tm-row{
+      display:flex;align-items:center;gap:6px;
+      min-width:0;width:100%
+    }
+
+    #tm-bar .tm-field{
+      display:flex;align-items:center;
+      height:38px;flex:1 1 0;min-width:0;
+      padding:0 12px;border-radius:10px;
+      background:rgba(0,0,0,.5);
+      border:1px solid rgba(124,136,255,.18);
+      transition:border-color .2s,background .2s
+    }
+    #tm-bar .tm-field:active,
+    #tm-bar .tm-field:focus-within{
+      border-color:rgba(124,136,255,.6);
+      background:rgba(0,0,0,.65)
+    }
+    #tm-bar .tm-field input{
+      width:100%;min-width:0;
+      border:none;outline:none;background:transparent;
+      font:12px 'SF Mono','Consolas',monospace;
+      letter-spacing:.3px;color:#e0e3ff;
+      text-align:center;
+    }
+    #tm-bar .tm-field input::placeholder{
+      color:#565a80;font-weight:500;font-size:11px
+    }
+
+    #tm-bar .tm-btn{
+      height:38px;padding:0 14px;
+      border-radius:10px;cursor:pointer;
+      font:600 12px -apple-system,system-ui,sans-serif;
+      background:rgba(124,136,255,.14);
+      border:1px solid rgba(124,136,255,.25);
+      color:#dfe2ff;
+      transition:all .16s;
+      white-space:nowrap;flex-shrink:0;
+      -webkit-tap-highlight-color:transparent;
+      display:inline-flex;align-items:center;justify-content:center
+    }
+    #tm-bar .tm-btn:hover{background:rgba(124,136,255,.28);color:#fff}
+    #tm-bar .tm-btn:active{transform:scale(.94)}
+    #tm-bar .tm-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    #tm-bar .tm-btn.primary{
+      background:rgba(124,136,255,.35);
+      border-color:rgba(124,136,255,.55);color:#fff;
+      min-width:72px
+    }
+    #tm-bar .tm-btn.danger{
+      background:rgba(255,107,107,.14);
+      border-color:rgba(255,107,107,.3);color:#ff8f8f;
+      padding:0 10px
+    }
+    #tm-bar .tm-btn.danger:hover{
+      background:rgba(255,107,107,.28);color:#fff
+    }
+    #tm-bar .tm-btn.copy{
+      padding:0 12px;font-size:11px
+    }
+
+    #tm-bar .tm-otp{
+      height:44px;width:100%;
+      display:flex;align-items:center;justify-content:center;
+      border-radius:10px;
+      font:700 22px 'SF Mono','Consolas',monospace;
+      letter-spacing:5px;
+      color:#5ce89a;
+      background:rgba(80,220,140,.08);
+      border:1px solid rgba(80,220,140,.22);
+      cursor:pointer;
+      transition:all .2s;
+      padding-left:5px
+    }
+    #tm-bar .tm-otp:hover{background:rgba(80,220,140,.14)}
+    #tm-bar .tm-otp:active{transform:scale(.98)}
+    #tm-bar .tm-otp:empty{display:none}
+    #tm-bar .tm-otp.waiting{
+      color:#ffb347;background:rgba(255,179,71,.08);
+      border-color:rgba(255,179,71,.22);
+      font:600 12px -apple-system,system-ui,sans-serif;
+      letter-spacing:.5px;
+      padding-left:0
+    }
+
+    #tm-toast{
+      position:fixed;left:50%;
+      bottom:calc(130px + env(safe-area-inset-bottom,0px));
+      transform:translate(-50%,14px);
+      padding:9px 18px;border-radius:22px;
+      background:rgba(20,22,38,.97);
+      border:1px solid rgba(124,136,255,.4);
+      color:#dfe2ff;
+      font:500 12px -apple-system,system-ui,sans-serif;
+      opacity:0;pointer-events:none;z-index:2147483647;
+      transition:opacity .25s,transform .25s cubic-bezier(.4,0,.2,1);
+      max-width:calc(100vw - 32px);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      -webkit-backdrop-filter:blur(12px);
+      backdrop-filter:blur(12px);
+      box-shadow:0 8px 32px rgba(0,0,0,.5)
+    }
+    #tm-toast.show{opacity:1;transform:translate(-50%,0)}
+
+    @media(max-width:380px){
+      #tm-bar .tm-btn.copy{display:none}
+      #tm-bar .tm-btn{padding:0 10px;font-size:11px}
+      #tm-bar .tm-btn.primary{min-width:60px}
+      #tm-bar .tm-field input{font-size:11px}
+      #tm-bar .tm-otp{font-size:20px;letter-spacing:4px}
+    }
+    `;
 
     const build = () => {
         if ($('tm-bar')) return;
@@ -158,7 +305,7 @@
               <input id="tm-email" readonly placeholder="klik Load"/>
             </div>
             <button id="tm-load" class="tm-btn primary" title="Email + OTP baru">Load</button>
-            <button id="tm-reset" class="tm-btn danger" title="Reset semua">Reset</button>
+            <button id="tm-reset" class="tm-btn danger" title="Reset">Reset</button>
             <button id="tm-cp-e" class="tm-btn copy" title="Copy email">Copy</button>
           </div>
           <div class="tm-row">
@@ -185,7 +332,7 @@
 
         if (waiting) {
             bigEl.classList.add('waiting');
-            bigEl.textContent = 'Menunggu...';
+            bigEl.textContent = 'Menunggu OTP...';
         } else {
             bigEl.classList.remove('waiting');
             bigEl.textContent = otp;
@@ -205,7 +352,7 @@
         gmSet(KEY_EMAIL, '');
         gmSet(KEY_OTP, '');
         gmSet(KEY_LAST_ID, '0');
-        gmSet(KEY_SESS, ''); // Hapus PHPSESSID
+        gmSet(KEY_SESS, '');
         sync();
     };
 
@@ -241,12 +388,10 @@
             sync();
 
             try {
-                // 1. Ambil email + tangkap PHPSESSID
                 const email = await fetchEmail();
                 gmSet(KEY_EMAIL, email);
                 sync();
 
-                // 2. Polling OTP (fetchOtp akan cek PHPSESSID)
                 const otp = await fetchOtp(() => sync());
                 if (otp) {
                     gmSet(KEY_OTP, otp);
@@ -286,13 +431,10 @@
         });
 
         try {
-            GM_addValueChangeListener(KEY_EMAIL, (n, o, v, remote) => { if (remote) sync(); });
-            GM_addValueChangeListener(KEY_OTP, (n, o, v, remote) => { if (remote) sync(); });
-            GM_addValueChangeListener(KEY_LAST_ID, (n, o, v, remote) => {
-                if (remote) { lastOtpId = Number(v) || 0; sync(); }
-            });
-            GM_addValueChangeListener(KEY_SESS, (n, o, v, remote) => {
-                // Session berubah, tidak perlu update UI, tapi bisa log
+            GM_addValueChangeListener(KEY_EMAIL, (n, o, v, r) => { if (r) sync(); });
+            GM_addValueChangeListener(KEY_OTP, (n, o, v, r) => { if (r) sync(); });
+            GM_addValueChangeListener(KEY_LAST_ID, (n, o, v, r) => {
+                if (r) { lastOtpId = Number(v) || 0; sync(); }
             });
         } catch { /* silent */ }
 
