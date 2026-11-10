@@ -16,7 +16,7 @@
     const LS_EMAIL = 'tm_email';
     const LS_OTP = 'tm_otp';
 
-    /* ---------- STORAGE (tahan refresh & hapus data) ---------- */
+    /* ---------- STORAGE ---------- */
     const store = {
         get: k => localStorage.getItem(k) || '',
         set: (k, v) => v ? localStorage.setItem(k, v) : localStorage.removeItem(k),
@@ -65,7 +65,7 @@
         return null;
     };
 
-    /* ---------- UI HELPERS ---------- */
+    /* ---------- HELPERS ---------- */
     const $ = id => document.getElementById(id);
 
     const toast = (msg) => {
@@ -85,74 +85,125 @@
 
     /* ---------- STYLES ---------- */
     const CSS = `
-    #tm-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);
-      z-index:999999;display:flex;gap:6px;align-items:center;
-      padding:8px 10px;margin-bottom:10px;
-      background:rgba(14,14,22,.9);
-      backdrop-filter:blur(18px) saturate(180%);
-      -webkit-backdrop-filter:blur(18px) saturate(180%);
+    #tm-bar{
+      position:fixed;left:50%;bottom:calc(8px + env(safe-area-inset-bottom,0px));
+      transform:translateX(-50%);
+      z-index:999999;
+      display:flex;align-items:center;
+      gap:6px;
+      padding:6px;
+      max-width:calc(100vw - 16px);
+      background:rgba(14,14,22,.92);
+      -webkit-backdrop-filter:blur(20px) saturate(180%);
+      backdrop-filter:blur(20px) saturate(180%);
       border:1px solid rgba(255,255,255,.08);
       border-radius:14px;
-      box-shadow:0 8px 32px rgba(0,0,0,.55);
+      box-shadow:0 10px 32px rgba(0,0,0,.55),
+                 inset 0 1px 0 rgba(255,255,255,.06);
       font:12px -apple-system,'Segoe UI',system-ui,sans-serif;
-      color:#e0e3ff;user-select:none;
-      max-width:calc(100vw - 20px);
+      color:#e0e3ff;
+      user-select:none;
       -webkit-tap-highlight-color:transparent;
-      animation:tmIn .3s cubic-bezier(.4,0,.2,1)}
+      animation:tmIn .28s cubic-bezier(.4,0,.2,1)
+    }
+    @keyframes tmIn{
+      from{opacity:0;transform:translate(-50%,10px)}
+      to{opacity:1;transform:translate(-50%,0)}
+    }
 
-    @keyframes tmIn{from{opacity:0;transform:translate(-50%,8px)}
-      to{opacity:1;transform:translate(-50%,0)}}
+    #tm-bar .tm-field{
+      display:flex;align-items:center;
+      height:32px;flex:1 1 0;min-width:0;
+      padding:0 9px;border-radius:9px;
+      background:rgba(0,0,0,.4);
+      border:1px solid rgba(124,136,255,.16);
+      transition:border-color .2s,background .2s
+    }
+    #tm-bar .tm-field:focus-within{
+      border-color:rgba(124,136,255,.55);
+      background:rgba(0,0,0,.55)
+    }
+    #tm-bar .tm-field input{
+      width:100%;min-width:0;
+      border:none;outline:none;background:transparent;
+      font:11px 'SF Mono','Consolas',monospace;
+      letter-spacing:.3px;color:#e0e3ff;
+      text-align:center;
+    }
+    #tm-bar .tm-field input::placeholder{
+      color:#565a80;font-weight:500
+    }
 
-    #tm-bar button,#tm-bar input{border:none;outline:none;
-      font:inherit;color:inherit;background:transparent}
+    #tm-bar .tm-btn{
+      height:32px;padding:0 10px;
+      border-radius:9px;cursor:pointer;
+      font:600 11px -apple-system,system-ui,sans-serif;
+      background:rgba(124,136,255,.14);
+      border:1px solid rgba(124,136,255,.22);
+      color:#dfe2ff;
+      transition:all .16s;
+      white-space:nowrap;flex-shrink:0;
+      -webkit-tap-highlight-color:transparent
+    }
+    #tm-bar .tm-btn:hover{background:rgba(124,136,255,.28);color:#fff}
+    #tm-bar .tm-btn:active{transform:scale(.94)}
+    #tm-bar .tm-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    #tm-bar .tm-btn.primary{background:rgba(124,136,255,.3);
+      border-color:rgba(124,136,255,.5);color:#fff}
 
-    #tm-bar .tm-field{display:flex;align-items:center;gap:4px;
-      padding:0 8px;height:30px;border-radius:8px;
-      background:rgba(0,0,0,.35);
-      border:1px solid rgba(124,136,255,.18);
-      transition:border-color .2s}
-    #tm-bar .tm-field:focus-within{border-color:rgba(124,136,255,.5)}
-    #tm-bar .tm-field input{width:130px;min-width:0;
-      font:11px 'SF Mono','Consolas',monospace;letter-spacing:.3px}
-    #tm-bar .tm-field input::placeholder{color:#565a80}
-
-    #tm-bar .tm-btn{height:30px;padding:0 10px;border-radius:8px;
-      cursor:pointer;font:600 11px system-ui,sans-serif;
-      background:rgba(124,136,255,.15);
-      border:1px solid rgba(124,136,255,.25);
-      color:#dfe2ff;transition:all .18s;white-space:nowrap}
-    #tm-bar .tm-btn:hover{background:rgba(124,136,255,.3);color:#fff}
-    #tm-bar .tm-btn:active{transform:scale(.95)}
-    #tm-bar .tm-btn:disabled{opacity:.4;cursor:not-allowed}
-
-    #tm-bar .tm-otp{font:700 14px 'SF Mono','Consolas',monospace;
-      letter-spacing:2px;color:#5ce89a;cursor:pointer;
-      padding:0 8px;height:30px;display:flex;align-items:center;
-      border-radius:8px;background:rgba(80,220,140,.08);
-      transition:background .2s}
+    #tm-bar .tm-otp{
+      height:32px;padding:0 12px;
+      display:flex;align-items:center;
+      border-radius:9px;
+      font:700 13px 'SF Mono','Consolas',monospace;
+      letter-spacing:1.5px;
+      color:#5ce89a;
+      background:rgba(80,220,140,.08);
+      border:1px solid rgba(80,220,140,.16);
+      cursor:pointer;
+      transition:background .2s;
+      flex-shrink:0
+    }
     #tm-bar .tm-otp:hover{background:rgba(80,220,140,.16)}
+    #tm-bar .tm-otp:active{transform:scale(.96)}
     #tm-bar .tm-otp:empty{display:none}
 
-    #tm-toast{position:fixed;bottom:56px;left:50%;
-      transform:translate(-50%,16px);
+    #tm-toast{
+      position:fixed;left:50%;
+      bottom:calc(56px + env(safe-area-inset-bottom,0px));
+      transform:translate(-50%,14px);
       padding:8px 16px;border-radius:20px;
       background:rgba(20,22,38,.96);
       border:1px solid rgba(124,136,255,.35);
-      color:#dfe2ff;font:500 12px system-ui,sans-serif;
+      color:#dfe2ff;
+      font:500 12px -apple-system,system-ui,sans-serif;
       opacity:0;pointer-events:none;z-index:1000000;
       transition:opacity .25s,transform .25s cubic-bezier(.4,0,.2,1);
-      max-width:calc(100vw - 40px);
+      max-width:calc(100vw - 32px);
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-      backdrop-filter:blur(12px)}
+      -webkit-backdrop-filter:blur(12px);
+      backdrop-filter:blur(12px)
+    }
     #tm-toast.show{opacity:1;transform:translate(-50%,0)}
 
-    @media(max-width:480px){
-      #tm-bar{padding:6px;margin-bottom:6px;gap:4px;border-radius:12px}
-      #tm-bar .tm-field{padding:0 6px;height:28px}
-      #tm-bar .tm-field input{width:96px;font-size:10px}
-      #tm-bar .tm-btn{height:28px;padding:0 8px;font-size:10px}
-      #tm-bar .tm-otp{height:28px;font-size:13px;padding:0 6px}
-      #tm-toast{font-size:11px;padding:7px 13px;bottom:48px}
+    /* ===== MOBILE ===== */
+    @media(max-width:600px){
+      #tm-bar{
+        gap:4px;padding:5px;
+        max-width:calc(100vw - 12px);
+        border-radius:12px
+      }
+      #tm-bar .tm-field{height:30px;padding:0 6px;border-radius:8px}
+      #tm-bar .tm-field input{font-size:10px;letter-spacing:0}
+      #tm-bar .tm-btn{height:30px;padding:0 8px;font-size:10px;border-radius:8px}
+      #tm-bar .tm-otp{height:30px;font-size:12px;padding:0 8px;letter-spacing:1px}
+      #tm-toast{font-size:11px;padding:7px 13px}
+    }
+
+    /* HP kecil: sembunyikan tombol Copy email (masih bisa klik field) */
+    @media(max-width:380px){
+      #tm-bar .tm-btn.copy{display:none}
+      #tm-bar .tm-field input{font-size:9.5px}
     }
     `;
 
@@ -165,12 +216,12 @@
         const bar = document.createElement('div');
         bar.id = 'tm-bar';
         bar.innerHTML = `
-          <div class="tm-field">
+          <div class="tm-field" title="Email">
             <input id="tm-email" readonly placeholder="email..."/>
           </div>
-          <button id="tm-new" class="tm-btn" title="Email baru">Baru</button>
-          <button id="tm-cp-e" class="tm-btn" title="Copy email">Copy</button>
-          <div class="tm-field">
+          <button id="tm-new" class="tm-btn primary" title="Email baru">Baru</button>
+          <button id="tm-cp-e" class="tm-btn copy" title="Copy email">Copy</button>
+          <div class="tm-field" title="OTP">
             <input id="tm-otp" readonly placeholder="otp..."/>
           </div>
           <button id="tm-wait" class="tm-btn" title="Ambil OTP">Ambil</button>
@@ -183,7 +234,7 @@
         document.body.appendChild(toastEl);
     };
 
-    /* ---------- RESTORE & HANDLERS ---------- */
+    /* ---------- INIT ---------- */
     const init = () => {
         build();
 
@@ -192,10 +243,14 @@
         const bigEl = $('tm-big');
         const waitBtn = $('tm-wait');
 
-        // restore dari localStorage
+        // restore
         emailEl.value = store.get(LS_EMAIL);
         otpEl.value = store.get(LS_OTP);
         if (otpEl.value) bigEl.textContent = otpEl.value;
+
+        // tap email field = copy
+        emailEl.onclick = async () =>
+            (await copy(emailEl.value)) ? toast('Email tersalin ✓') : toast('Kosong');
 
         $('tm-new').onclick = async () => {
             try {
@@ -205,14 +260,13 @@
                 bigEl.textContent = '';
                 store.set(LS_EMAIL, email);
                 store.set(LS_OTP, '');
-                toast('Email baru siap ✓');
+                toast('Email baru ✓');
             } catch {
                 toast('Gagal ambil email');
             }
         };
 
-        $('tm-cp-e').onclick = async () =>
-            (await copy(emailEl.value)) ? toast('Email tersalin ✓') : toast('Kosong');
+        $('tm-cp-e').onclick = emailEl.onclick;
 
         waitBtn.onclick = async () => {
             waitBtn.disabled = true;
