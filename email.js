@@ -15,11 +15,14 @@
     const TIMEOUT = 180_000;
     const LS_EMAIL = 'tm_email';
     const LS_OTP = 'tm_otp';
+    const LS_LAST_ID = 'tm_last_id';
 
     /* ---------- STORAGE ---------- */
     const store = {
         get: k => localStorage.getItem(k) || '',
-        set: (k, v) => v ? localStorage.setItem(k, v) : localStorage.removeItem(k),
+        set: (k, v) => v !== '' && v != null
+            ? localStorage.setItem(k, v)
+            : localStorage.removeItem(k),
     };
 
     /* ---------- NETWORK ---------- */
@@ -41,27 +44,42 @@
         return atob(m[1]);
     };
 
-    const otpFrom = s => (s || '').match(/\b(\d{5})\b/)?.[1] || null;
+    /* ---------- OTP (5 digit, dari SUBJECT saja) ---------- */
+    const otpFrom = (subject) =>
+        (subject || '').match(/\b(\d{5})\b/)?.[1] || null;
+
+    /* ---------- OTP POLLING ---------- */
+    let lastOtpId = Number(store.get(LS_LAST_ID)) || 0;
 
     const fetchOtp = async (tick) => {
         const end = Date.now() + TIMEOUT;
-        let last = 0;
+
         while (Date.now() < end) {
             try {
                 const raw = await req(`${BASE}/template/checker.php`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `last_id=${last}`,
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `last_id=${lastOtpId}`,
                 });
-                for (const m of JSON.parse(raw) || []) {
-                    last = Math.max(last, m.id);
+
+                const mails = JSON.parse(raw) || [];
+
+                for (const m of mails) {
+                    lastOtpId = Math.max(lastOtpId, m.id || 0);
+                    store.set(LS_LAST_ID, String(lastOtpId));
+
                     const otp = otpFrom(m.subject);
                     if (otp) return otp;
                 }
+
                 tick?.('Menunggu OTP...');
             } catch { /* silent */ }
+
             await new Promise(r => setTimeout(r, POLL));
         }
+
         return null;
     };
 
@@ -79,8 +97,21 @@
 
     const copy = async (text) => {
         if (!text) return false;
-        try { await navigator.clipboard.writeText(text); return true; }
-        catch { return false; }
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.cssText = 'position:fixed;opacity:0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
+                return true;
+            } catch { return false; }
+        }
     };
 
     /* ---------- STYLES ---------- */
@@ -252,14 +283,17 @@
         emailEl.onclick = async () =>
             (await copy(emailEl.value)) ? toast('Email tersalin ✓') : toast('Kosong');
 
+        // Email baru: reset juga lastOtpId supaya inbox baru dipindai dari awal
         $('tm-new').onclick = async () => {
             try {
                 const email = await fetchEmail();
                 emailEl.value = email;
                 otpEl.value = '';
                 bigEl.textContent = '';
+                lastOtpId = 0;
                 store.set(LS_EMAIL, email);
                 store.set(LS_OTP, '');
+                store.set(LS_LAST_ID, '0');
                 toast('Email baru ✓');
             } catch {
                 toast('Gagal ambil email');
